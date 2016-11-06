@@ -1,26 +1,35 @@
 package org.devathon.contest2016.machines;
 
 import org.bukkit.ChatColor;
+import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.EulerAngle;
 import org.devathon.contest2016.DevathonPlugin;
 import org.devathon.contest2016.mechanics.Machine;
+import org.devathon.contest2016.mechanics.MachineManager;
 import org.devathon.contest2016.util.ArmorStands;
-import org.devathon.contest2016.util.Fireworks;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class HoleDiggerMachine implements Machine {
+public class HoleDiggerMachine extends Machine {
+
+	private boolean digging = false;
+
+	public HoleDiggerMachine(Player owner) {
+		super(owner);
+	}
 
 	@Override
 	public void spawnIn(Location location) {
+		digging = true;
 		ArmorStand animated = createAnimatedStand(location.add(0, 1, 0));
 		List<Location> previous = new ArrayList<>();
 		new BukkitRunnable() {
@@ -47,10 +56,12 @@ public class HoleDiggerMachine implements Machine {
 				});
 				previous.clear();
 				animated.setRightArmPose(new EulerAngle(angle, 0, 0));
+				animated.teleport(animated.getLocation().subtract(0, 1, 0));
+				animated.getWorld().playEffect(animated.getLocation(), Effect.SMOKE, 3);
+				getOwner().playSound(animated.getLocation(), Sound.BLOCK_FIRE_EXTINGUISH, 1F, 0F);
 				int half = (3 - 1) / 2;
 				Location base = animated.getLocation().clone().subtract(half, 0, half);
 				if (base.getBlock().getRelative(BlockFace.DOWN).getType() == Material.BEDROCK) {
-					Fireworks.launchFireworks(animated.getLocation(), 3);
 					animated.remove();
 					previous.forEach(location1 -> {
 						location1.getBlock().setType(Material.AIR);
@@ -58,6 +69,8 @@ public class HoleDiggerMachine implements Machine {
 					previous.clear();
 
 					cancel();
+					digging = false;
+					MachineManager.getInstance().unregisterMachine(getOwner());
 					return;
 				}
 				for (int x = 0; x < 3; x++) {
@@ -68,7 +81,6 @@ public class HoleDiggerMachine implements Machine {
 						base.subtract(x, 0, z);
 					}
 				}
-				animated.teleport(animated.getLocation().subtract(0, 1, 0));
 			}
 		}.runTaskTimer(DevathonPlugin.get(), 0L, 10L);
 	}
@@ -76,6 +88,16 @@ public class HoleDiggerMachine implements Machine {
 	@Override
 	public String getName() {
 		return "Hole Digger";
+	}
+
+	@Override
+	public String getState() {
+		return (digging ? "Digging" : "Waiting...");
+	}
+
+	@Override
+	public boolean shouldRemove() {
+		return false;
 	}
 
 	private ArmorStand createAnimatedStand(Location location) {
